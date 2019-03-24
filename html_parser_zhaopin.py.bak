@@ -1,0 +1,61 @@
+# coding: utf-8
+from bs4 import BeautifulSoup
+import re
+import urlparse
+class HtmlParser(object):
+    
+    def _get_new_urls(self, page_url, soup):
+        new_urls = set();
+        links = soup.find_all('section', class_="job-list");
+        for link in links:
+            new_url = link.find('a')['href']
+            new_full_url = urlparse.urljoin(page_url, new_url)
+            new_urls.add(new_full_url)
+        return new_urls
+    
+    def _get_new_data(self, page_url, soup, type):
+        res_data = {} # 定义字典
+        res_data['url'] = page_url #收集地址
+        res_data['type'] = type #收集类型
+        li_node = soup.find_all('ul', class_='terminal-ul')[0].find_all('li')
+        res_data['name'] = soup.find('div', class_="top-fixed-box").find('h1').get_text() #收集职位名称
+        res_data['public_time'] = ''; #收集发布时间
+        res_data['address'] = li_node[1].find('a').get_text(); #收集公司地址
+        res_data['salary']  = li_node[0].find('strong').get_text(); #收集薪资
+        res_data['company']  = soup.find('div', class_="top-fixed-box").find('h2').find('a').get_text() # 收集公司
+        res_data['experience'] = li_node[4].find('strong').get_text();  #收集经验要求
+        res_data['education'] = li_node[5].find('strong').get_text(); # 收集学历要求
+        pre_node = soup.find('pre');
+        if pre_node is None:       
+            article_node = soup.find('div', class_="terminalpage-main").find('div', class_='tab-inner-cont').find_all('p')
+            duty = ''
+            for node in article_node:
+                text = node.get_text();
+                if text is None or text == '<br>':
+                     continue;
+                duty = duty + text
+            res_data['duty']  = duty #收集岗位职责
+        else :
+            res_data['duty']  = pre_node.get_text();
+        return res_data;
+        
+    def parse(self, page_url, page_content, type):
+        if page_url is None or page_content is None:
+            return
+        soup = BeautifulSoup(page_content, 'html.parser', from_encoding='utf-8') #利用BeautifulSoup，格式化html源码
+        new_data = self._get_new_data(page_url, soup, type) # 调用分析方法获取数据
+        return new_data
+
+    # 分析搜索页数据，获取总页数和详细职位地址
+    def parse_search_page(self, page_content):
+        if page_content is None:
+            return
+        new_urls = set();
+        soup = BeautifulSoup(page_content, 'html.parser', from_encoding='utf-8') #利用BeautifulSoup，格式化html源码
+        td_nodes = soup.find_all('td', class_='zwmc'); # 职位链接节点
+        for node in td_nodes: # 循环链接节点
+            new_url = node.find('a')['href'] # 获取连接
+            new_urls.add(new_url)
+        li_nodes = soup.find('div', class_='pagesDown').find_all('li', class_='')  #页面总页数节点
+        total = li_nodes[len(li_nodes) - 2].get_text(); #获取总页数
+        return int(total), new_urls
